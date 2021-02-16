@@ -17,7 +17,7 @@ output_width = 73  # 121 #73
 area_width = 800.  # Spatial area of the grid
 
 threshold_human_wall = 1.5
-limit = 50000  # Limit of graphs to load
+limit = 2000  # Limit of graphs to load
 path_saves = 'saves/'  # This variable is necessary due tu a bug in dgl.DGLDataset source code
 graphData = namedtuple('graphData', ['src_nodes', 'dst_nodes', 'n_nodes', 'features', 'edge_feats', 'edge_types',
                                      'edge_norms', 'position_by_id', 'typeMap', 'labels', 'w_segments'])
@@ -63,122 +63,51 @@ def closest_grid_nodes(grid_ids, w_a, w_i, r, x, y):
     return grid_nodes
 
 
-def get_node_descriptor_header(alt):
+def get_node_descriptor_header():
     # Node Descriptor Table
-    node_descriptor_header = None
-    if alt == '1':
-        node_descriptor_header = ['R', 'H', 'O', 'L', 'W',
-                                  'h_dist', 'h_dist2', 'h_ang_sin', 'h_ang_cos', 'h_orient_sin', 'h_orient_cos',
-                                  'o_dist', 'o_dist2', 'o_ang_sin', 'o_ang_cos', 'o_orient_sin', 'o_orient_cos',
-                                  'r_m_h', 'r_m_h2', 'r_hs', 'r_hs2',
-                                  'w_dist', 'w_dist2', 'w_ang_sin', 'w_ang_cos', 'w_orient_sin', 'w_orient_cos']
-    elif alt == '2':
-        node_descriptor_header = ['is_human', 'is_object', 'is_room', 'is_wall', 'is_grid',
-                                  'hum_x_pos', 'hum_y_pos',
-                                  'hum_orient_sin', 'hum_orient_cos',
-                                  'obj_x_pos', 'obj_y_pos',
-                                  'obj_orient_sin', 'obj_orient_cos',
-                                  'num_hs_room', 'num_hs2_room',
-                                  'wall_x_pos', 'wall_y_pos',
-                                  'wall_orient_sin', 'wall_orient_cos',
-                                  'grid_x_pos', 'grid_y_pos']
-    elif alt == '3':
-        node_descriptor_header = ['R', 'H', 'O', 'L', 'W',
-                                  'h_dist', 'h_dist2', 'h_ang_sin', 'h_ang_cos', 'h_orient_sin', 'h_orient_cos',
-                                  'o_dist', 'o_dist2', 'o_ang_sin', 'o_ang_cos', 'o_orient_sin', 'o_orient_cos',
-                                  'r_m_h', 'r_m_h2', 'r_hs', 'r_hs2',
-                                  'w_dist', 'w_dist2', 'w_ang_sin', 'w_ang_cos', 'w_orient_sin', 'w_orient_cos']
+    node_descriptor_header = ['R', 'H', 'O', 'L', 'W',
+                              'h_dist', 'h_dist2', 'h_ang_sin', 'h_ang_cos', 'h_orient_sin', 'h_orient_cos',
+                              'o_dist', 'o_dist2', 'o_ang_sin', 'o_ang_cos', 'o_orient_sin', 'o_orient_cos',
+                              'r_m_h', 'r_m_h2', 'r_hs', 'r_hs2',
+                              'w_dist', 'w_dist2', 'w_ang_sin', 'w_ang_cos', 'w_orient_sin', 'w_orient_cos']
     return node_descriptor_header
 
 
-def get_relations(alt):
-    rels = None
-    if alt == '1':
-        rels = {'p_r', 'o_r', 'l_r', 'l_p', 'l_o', 'p_p', 'p_o', 'w_l', 'w_p'}
-        # p = person
-        # r = robot
-        # l = room (lounge)
-        # o = object
-        # w = wall
-        # n = node (generic)
-        for e in list(rels):
-            rels.add(e[::-1])
-        rels.add('self')
-        rels = sorted(list(rels))
-    elif alt == '2':
-        room_set = {'l_p', 'l_o', 'l_w', 'l_g', 'p_p', 'p_o', 'p_g', 'o_g', 'w_g'}
-        grid_set = {'g_c', 'g_ri', 'g_le', 'g_u', 'g_d', 'g_uri', 'g_dri', 'g_ule', 'g_dle'}
-        # ^
-        # |_p = person             g_ri = grid right
-        # |_w = wall               g_le = grid left
-        # |_l = lounge             g_u = grid up
-        # |_o = object             g_d = grid down
-        # |_g = grid node
-        self_edges_set = {'P', 'O', 'W', 'L'}
-
-        for e in list(room_set):
-            room_set.add(e[::-1])
-        relations_class = room_set | grid_set | self_edges_set
-        rels = sorted(list(relations_class))
-    elif alt == '3':
-        rels = {'p_r', 'o_r', 'p_p', 'p_o', 'w_r', 'g_r', 'w_p'} # add 'w_w' for links between wall nodes
-        # p = person
-        # r = room
-        # o = object
-        # w = wall
-        # g = goal
-        for e in list(rels):
-            rels.add(e[::-1])
-        rels.add('self')
-        rels = sorted(list(rels))
-
+def get_relations():
+    rels = {'p_r', 'o_r', 'p_p', 'p_o', 'w_r', 'g_r', 'w_p'}  # add 'w_w' for links between wall nodes
+    # p = person
+    # r = room
+    # o = object
+    # w = wall
+    # g = goal
+    for e in list(rels):
+        rels.add(e[::-1])
+    rels.add('self')
+    rels = sorted(list(rels))
     num_rels = len(rels)
 
     return rels, num_rels
 
 
-def get_features(alt):
-    all_features = None
-    if alt == '1':
-        node_types_one_hot = ['robot', 'human', 'object', 'room', 'wall']
-        human_metric_features = ['hum_distance', 'hum_distance2', 'hum_angle_sin', 'hum_angle_cos',
-                                 'hum_orientation_sin', 'hum_orientation_cos', 'hum_robot_sin',
-                                 'hum_robot_cos']
-        object_metric_features = ['obj_distance', 'obj_distance2', 'obj_angle_sin', 'obj_angle_cos',
-                                  'obj_orientation_sin', 'obj_orientation_cos']
-        room_metric_features = ['room_min_human', 'room_min_human2', 'room_humans', 'room_humans2']
-        wall_metric_features = ['wall_distance', 'wall_distance2', 'wall_angle_sin', 'wall_angle_cos',
-                                'wall_orientation_sin', 'wall_orientation_cos']
-        all_features = node_types_one_hot + human_metric_features + object_metric_features + room_metric_features + \
-                       wall_metric_features
-    elif alt == '2':
-        node_types_one_hot = ['human', 'object', 'room', 'wall', 'grid']
-        human_metric_features = ['hum_x_pos', 'hum_y_pos', 'hum_orientation_sin', 'hum_orientation_cos']
-        object_metric_features = ['obj_x_pos', 'obj_y_pos', 'obj_orientation_sin', 'obj_orientation_cos']
-        room_metric_features = ['room_humans', 'room_humans2']
-        wall_metric_features = ['wall_x_pos', 'wall_y_pos', 'wall_orientation_sin', 'wall_orientation_cos']
-        grid_metric_features = ['grid_x_pos', 'grid_y_pos']  # , 'flag_inside_room']  # , 'count']
-        all_features = node_types_one_hot + human_metric_features + object_metric_features + room_metric_features + \
-                       wall_metric_features + grid_metric_features
-    elif alt == '3':
-        time_one_hot = ['is_t_0', 'is_t_m1', 'is_t_m2']
-        # time_sequence_features = ['is_first_frame', 'time_left']
-        human_metric_features = ['hum_x_pos', 'hum_y_pos', 'human_a_vel', 'human_x_vel', 'human_y_vel',
-                                 'hum_orientation_sin', 'hum_orientation_cos',
-                                 'hum_dist', 'hum_inv_dist']
-        object_metric_features = ['obj_x_pos', 'obj_y_pos', 'obj_a_vel', 'obj_x_vel', 'obj_y_vel',
-                                  'obj_orientation_sin', 'obj_orientation_cos',
-                                  'obj_x_size', 'obj_y_size',
-                                  'obj_dist', 'obj_inv_dist']
-        room_metric_features = ['room_humans', 'room_humans2']
-        robot_features = ['robot_adv_vel', 'robot_rot_vel']
-        wall_metric_features = ['wall_x_pos', 'wall_y_pos', 'wall_orientation_sin', 'wall_orientation_cos',
-                                'wall_dist', 'wall_inv_dist']
-        goal_metric_features = ['goal_x_pos', 'goal_y_pos', 'goal_dist', 'goal_inv_dist']
-        grid_metric_features = ['grid_x_pos', 'grid_y_pos']
-        node_types_one_hot = ['human', 'object', 'room', 'wall', 'goal']
-        all_features = node_types_one_hot + time_one_hot + human_metric_features + robot_features + \
-                       object_metric_features + room_metric_features + wall_metric_features + goal_metric_features
+def get_features():
+    time_one_hot = ['is_t_0', 'is_t_m1', 'is_t_m2']
+    # time_sequence_features = ['is_first_frame', 'time_left']
+    human_metric_features = ['hum_x_pos', 'hum_y_pos', 'human_a_vel', 'human_x_vel', 'human_y_vel',
+                             'hum_orientation_sin', 'hum_orientation_cos',
+                             'hum_dist', 'hum_inv_dist']
+    object_metric_features = ['obj_x_pos', 'obj_y_pos', 'obj_a_vel', 'obj_x_vel', 'obj_y_vel',
+                              'obj_orientation_sin', 'obj_orientation_cos',
+                              'obj_x_size', 'obj_y_size',
+                              'obj_dist', 'obj_inv_dist']
+    room_metric_features = ['room_humans', 'room_humans2']
+    robot_features = ['robot_adv_vel', 'robot_rot_vel']
+    wall_metric_features = ['wall_x_pos', 'wall_y_pos', 'wall_orientation_sin', 'wall_orientation_cos',
+                            'wall_dist', 'wall_inv_dist']
+    goal_metric_features = ['goal_x_pos', 'goal_y_pos', 'goal_dist', 'goal_inv_dist']
+    grid_metric_features = ['grid_x_pos', 'grid_y_pos']
+    node_types_one_hot = ['human', 'object', 'room', 'wall', 'goal']
+    all_features = node_types_one_hot + time_one_hot + human_metric_features + robot_features + \
+                   object_metric_features + room_metric_features + wall_metric_features + goal_metric_features
 
     feature_dimensions = len(all_features)
 
@@ -188,520 +117,6 @@ def get_features(alt):
 #################################################################
 # Different initialize alternatives:
 #################################################################
-
-# Generate data for a grid of nodes
-
-def generate_grid_graph_data():
-    # Define variables for edge types and relations
-    grid_rels, _ = get_relations('2')
-    edge_types = []  # List to store the relation of each edge
-    edge_norms = []  # List to store the norm of each edge
-
-    # Grid properties
-    connectivity = 8  # Connections of each node
-    node_ids = np.zeros((grid_width, grid_width), dtype=int)  # Array to store the IDs of each node
-    typeMap = dict()
-    coordinates_gridGraph = dict()  # Dict to store the spatial coordinates of each node
-    src_nodes = []  # List to store source nodes
-    dst_nodes = []  # List to store destiny nodes
-
-    # Feature dimensions
-    all_features, n_features = get_features('2')
-
-    # Compute the number of nodes and initialize feature vectors
-    n_nodes = grid_width ** 2
-    features_gridGraph = th.zeros(n_nodes, n_features)
-
-    max_used_id = -1
-    for y in range(grid_width):
-        for x in range(grid_width):
-            max_used_id += 1
-            node_id = max_used_id
-            node_ids[x][y] = node_id
-
-            # Self edges
-            src_nodes.append(node_id)
-            dst_nodes.append(node_id)
-            edge_types.append(grid_rels.index('g_c'))
-            edge_norms.append([1.])
-
-            if x < grid_width - 1:
-                src_nodes.append(node_id)
-                dst_nodes.append(node_id + 1)
-                edge_types.append(grid_rels.index('g_ri'))
-                edge_norms.append([1.])
-                if connectivity == 8 and y > 0:
-                    src_nodes.append(node_id)
-                    dst_nodes.append(node_id - grid_width + 1)
-                    edge_types.append(grid_rels.index('g_uri'))
-                    edge_norms.append([1.])
-            if x > 0:
-                src_nodes.append(node_id)
-                dst_nodes.append(node_id - 1)
-                edge_types.append(grid_rels.index('g_le'))
-                edge_norms.append([1.])
-                if connectivity == 8 and y < grid_width - 1:
-                    src_nodes.append(node_id)
-                    dst_nodes.append(node_id + grid_width - 1)
-                    edge_types.append(grid_rels.index('g_dle'))
-                    edge_norms.append([1.])
-            if y < grid_width - 1:
-                src_nodes.append(node_id)
-                dst_nodes.append(node_id + grid_width)
-                edge_types.append(grid_rels.index('g_d'))
-                edge_norms.append([1.])
-                if connectivity == 8 and x < grid_width - 1:
-                    src_nodes.append(node_id)
-                    dst_nodes.append(node_id + grid_width + 1)
-                    edge_types.append(grid_rels.index('g_dri'))
-                    edge_norms.append([1.])
-            if y > 0:
-                src_nodes.append(node_id)
-                dst_nodes.append(node_id - grid_width)
-                edge_types.append(grid_rels.index('g_u'))
-                edge_norms.append([1.])
-                if connectivity == 8 and x > 0:
-                    src_nodes.append(node_id)
-                    dst_nodes.append(node_id - grid_width - 1)
-                    edge_types.append(grid_rels.index('g_ule'))
-                    edge_norms.append([1.])
-
-            typeMap[node_id] = 'g'  # 'g' for 'grid'
-            x_pos = (-area_width / 2. + (x + 0.5) * (area_width / grid_width))
-            y_pos = (-area_width / 2. + (y + 0.5) * (area_width / grid_width))
-            features_gridGraph[node_id, all_features.index('grid')] = 1
-            features_gridGraph[node_id, all_features.index('grid_x_pos')] = 2. * x_pos / 1000
-            features_gridGraph[node_id, all_features.index('grid_y_pos')] = -2. * y_pos / 1000
-
-            coordinates_gridGraph[node_id] = [x_pos / 1000, y_pos / 1000]
-
-    src_nodes = th.LongTensor(src_nodes)
-    dst_nodes = th.LongTensor(dst_nodes)
-
-    edge_types = th.LongTensor(edge_types)
-    edge_norms = th.Tensor(edge_norms)
-
-    return src_nodes, dst_nodes, n_nodes, features_gridGraph, None, edge_types, edge_norms, coordinates_gridGraph, typeMap, \
-           node_ids
-
-
-# So far there two different alternatives, the second one includes the grid
-def initializeAlt1(data):
-    # Initialize variables
-    rels, num_rels = get_relations('1')
-    edge_types = []  # List to store the relation of each edge
-    edge_norms = []  # List to store the norm of each edge
-    max_used_id = 0  # Initialise id counter (0 for the robot)
-    closest_human_distance = -1  # Compute closest human distance
-
-    # Compute data for walls
-    Wall = namedtuple('Wall', ['dist', 'orientation', 'angle', 'xpos', 'ypos'])
-    walls = []
-    for wall_index in range(len(data['room']) - 1):
-        p1 = np.array(data['room'][wall_index + 0])
-        p2 = np.array(data['room'][wall_index + 1])
-        dist = np.linalg.norm(p1 - p2)
-        iters = int(dist / 400) + 1
-        if iters > 1:
-            v = (p2 - p1) / iters
-            for i in range(iters):
-                pa = p1 + v * i
-                pb = p1 + v * (i + 1)
-                inc2 = pb - pa
-                midsp = (pa + pb) / 2
-                walls.append(
-                    Wall(np.linalg.norm(midsp) / 100., math.atan2(inc2[0], inc2[1]), math.atan2(midsp[0], midsp[1]),
-                         midsp[0], midsp[1]))
-        else:
-            inc = p2 - p1
-            midp = (p2 + p1) / 2
-            walls.append(
-                Wall(np.linalg.norm(inc / 2) / 100., math.atan2(inc[0], inc[1]), math.atan2(midp[0], midp[1]),
-                     midp[0], midp[1]))
-
-    # Compute the number of nodes
-    # one for the robot + room walls      + humans               + objects          + room(global node)
-    n_nodes = 1 + len(walls) + len(data['humans']) + len(data['objects']) + 1
-
-    # Feature dimensions
-    all_features, n_features = get_features('1')
-    features = th.zeros(n_nodes, n_features)
-
-    # Nodes variables
-    typeMap = dict()
-    position_by_id = {}
-    src_nodes = []  # List to store source nodes
-    dst_nodes = []  # List to store destiny nodes
-
-    # Labels
-    labels = th.zeros([1, 1])  # A 1x1 tensor
-    labels[0][0] = th.tensor(float(data['score']) / 100.)
-
-    # robot (id 0)
-    robot_id = 0
-    typeMap[robot_id] = 'r'  # 'r' for 'robot'
-    features[robot_id, all_features.index('robot')] = 1.
-
-    # humans
-    for h in data['humans']:
-        src_nodes.append(h['id'])
-        dst_nodes.append(robot_id)
-        edge_types.append(rels.index('p_r'))
-        edge_norms.append([1. / len(data['humans'])])
-
-        src_nodes.append(robot_id)
-        dst_nodes.append(h['id'])
-        edge_types.append(rels.index('r_p'))
-        edge_norms.append([1.])
-
-        typeMap[h['id']] = 'p'  # 'p' for 'person'
-        max_used_id = max(h['id'], max_used_id)
-        xpos = float(h['xPos']) / 100.
-        ypos = float(h['yPos']) / 100.
-
-        position_by_id[h['id']] = [xpos, ypos]
-        distance = math.sqrt(xpos * xpos + ypos * ypos)
-        angle = math.atan2(xpos, ypos)
-        orientation = float(h['orientation']) / 180. * math.pi
-        while orientation > math.pi: orientation -= 2. * math.pi
-        while orientation < -math.pi: orientation += 2. * math.pi
-        if orientation > math.pi:
-            orientation -= math.pi
-        elif orientation < -math.pi:
-            orientation += math.pi
-        # Compute point of view from humans
-        if angle > 0:
-            angle_hum = (angle - math.pi) - orientation
-        else:
-            angle_hum = (math.pi + angle) - orientation
-
-        # print(str(math.degrees(angle)) + ' ' + str(math.degrees(orientation)) + ' ' + str(math.degrees(angle_hum)))
-        features[h['id'], all_features.index('human')] = 1.
-        features[h['id'], all_features.index('hum_distance')] = distance
-        features[h['id'], all_features.index('hum_distance2')] = distance * distance
-        features[h['id'], all_features.index('hum_angle_sin')] = math.sin(angle)
-        features[h['id'], all_features.index('hum_angle_cos')] = math.cos(angle)
-        features[h['id'], all_features.index('hum_orientation_sin')] = math.sin(orientation)
-        features[h['id'], all_features.index('hum_orientation_cos')] = math.cos(orientation)
-        features[h['id'], all_features.index('hum_robot_sin')] = math.sin(angle_hum)
-        features[h['id'], all_features.index('hum_robot_cos')] = math.cos(angle_hum)
-        if closest_human_distance < 0 or closest_human_distance > distance:
-            closest_human_distance = distance
-
-    # objects
-    for o in data['objects']:
-        src_nodes.append(o['id'])
-        dst_nodes.append(robot_id)
-        edge_types.append(rels.index('o_r'))
-        edge_norms.append([1. / len(data['objects'])])
-
-        src_nodes.append(robot_id)
-        dst_nodes.append(o['id'])
-        edge_types.append(rels.index('r_p'))
-        edge_norms.append([1.])
-
-        typeMap[o['id']] = 'o'  # 'o' for 'object'
-        max_used_id = max(o['id'], max_used_id)
-        xpos = float(o['xPos']) / 100.
-        ypos = float(o['yPos']) / 100.
-
-        position_by_id[o['id']] = [xpos, ypos]
-        distance = math.sqrt(xpos * xpos + ypos * ypos)
-        angle = math.atan2(xpos, ypos)
-        orientation = float(o['orientation']) / 180. * math.pi
-        while orientation > math.pi: orientation -= 2. * math.pi
-        while orientation < -math.pi: orientation += 2. * math.pi
-        features[o['id'], all_features.index('object')] = 1
-        features[o['id'], all_features.index('obj_distance')] = distance
-        features[o['id'], all_features.index('obj_distance2')] = distance * distance
-        features[o['id'], all_features.index('obj_angle_sin')] = math.sin(angle)
-        features[o['id'], all_features.index('obj_angle_cos')] = math.cos(angle)
-        features[o['id'], all_features.index('obj_orientation_sin')] = math.sin(orientation)
-        features[o['id'], all_features.index('obj_orientation_cos')] = math.cos(orientation)
-
-    # Room (Global node)
-    max_used_id += 1
-    room_id = max_used_id
-    # print('Room will be {}'.format(room_id))
-    typeMap[room_id] = 'l'  # 'l' for 'room' (lounge)
-    features[room_id, all_features.index('room')] = 1.
-    features[room_id, all_features.index('room_min_human')] = closest_human_distance
-    features[room_id, all_features.index('room_min_human2')] = closest_human_distance * closest_human_distance
-    features[room_id, all_features.index('room_humans')] = len(data['humans'])
-    features[room_id, all_features.index('room_humans2')] = len(data['humans']) * len(data['humans'])
-
-    # walls
-    wids = dict()
-    for wall in walls:
-        max_used_id += 1
-        wall_id = max_used_id
-        wids[wall] = wall_id
-        typeMap[wall_id] = 'w'  # 'w' for 'walls'
-
-        src_nodes.append(wall_id)
-        dst_nodes.append(room_id)
-        edge_types.append(rels.index('w_l'))
-        edge_norms.append([1. / len(walls)])
-
-        src_nodes.append(room_id)
-        dst_nodes.append(wall_id)
-        edge_types.append(rels.index('l_w'))
-        edge_norms.append([1.])
-
-        position_by_id[wall_id] = [wall.xpos / 100., wall.ypos / 100.]
-        features[wall_id, all_features.index('wall')] = 1.
-        features[wall_id, all_features.index('wall_distance')] = wall.dist
-        features[wall_id, all_features.index('wall_distance2')] = wall.dist * wall.dist
-        features[wall_id, all_features.index('wall_angle_sin')] = math.sin(wall.angle)
-        features[wall_id, all_features.index('wall_angle_cos')] = math.cos(wall.angle)
-        features[wall_id, all_features.index('wall_orientation_sin')] = math.sin(wall.orientation)
-        features[wall_id, all_features.index('wall_orientation_cos')] = math.cos(wall.orientation)
-
-    for h in data['humans']:
-        number = 0
-        for wall in walls:
-            dist = dist_h_w(h, wall)
-            if dist < threshold_human_wall:
-                number -= - 1
-        for wall in walls:
-            dist = dist_h_w(h, wall)
-            if dist < threshold_human_wall:
-                src_nodes.append(wids[wall])
-                dst_nodes.append(h['id'])
-                edge_types.append(rels.index('w_p'))
-                edge_norms.append([1. / number])
-
-    for wall in walls:
-        number = 0
-        for h in data['humans']:
-            dist = dist_h_w(h, wall)
-            if dist < threshold_human_wall:
-                number -= - 1
-        for h in data['humans']:
-            dist = dist_h_w(h, wall)
-            if dist < threshold_human_wall:
-                src_nodes.append(h['id'])
-                dst_nodes.append(wids[wall])
-                edge_types.append(rels.index('p_w'))
-                edge_norms.append([1. / number])
-
-    # interaction links
-    for link in data['links']:
-        typeLdir = typeMap[link[0]] + '_' + typeMap[link[1]]
-        typeLinv = typeMap[link[1]] + '_' + typeMap[link[0]]
-
-        src_nodes.append(link[0])
-        dst_nodes.append(link[1])
-        edge_types.append(rels.index(typeLdir))
-        edge_norms.append([1.])
-
-        src_nodes.append(link[1])
-        dst_nodes.append(link[0])
-        edge_types.append(rels.index(typeLinv))
-        edge_norms.append([1.])
-
-    # Edges for the room node (Global Node)
-    for node_id in range(n_nodes):
-        typeLdir = typeMap[room_id] + '_' + typeMap[node_id]
-        typeLinv = typeMap[node_id] + '_' + typeMap[room_id]
-        if node_id == room_id:
-            continue
-
-        src_nodes.append(room_id)
-        dst_nodes.append(node_id)
-        edge_types.append(rels.index(typeLdir))
-        edge_norms.append([1.])
-
-        src_nodes.append(node_id)
-        dst_nodes.append(room_id)
-        edge_types.append(rels.index(typeLinv))
-        edge_norms.append([1. / max_used_id])
-
-    # self edges
-    for node_id in range(n_nodes - 1):
-        src_nodes.append(node_id)
-        dst_nodes.append(node_id)
-        edge_types.append(rels.index('self'))
-        edge_norms.append([1.])
-
-    # Convert outputs to tensors
-    edge_types = th.LongTensor(edge_types)
-    edge_norms = th.Tensor(edge_norms)
-
-    return src_nodes, dst_nodes, n_nodes, features, None, edge_types, edge_norms, position_by_id, typeMap, labels, []
-
-
-def initializeAlt2(data):
-    # Define variables for edge types and relations
-    rels, _ = get_relations('2')
-    edge_types = []  # List to store the relation of each edge
-    edge_norms = []  # List to store the norm of each edge
-
-    # Compute data for walls
-    Wall = namedtuple('Wall', ['orientation', 'xpos', 'ypos'])
-    walls = []
-    for wall_index in range(len(data['room']) - 1):
-        p1 = np.array(data['room'][wall_index + 0])
-        p2 = np.array(data['room'][wall_index + 1])
-        dist = np.linalg.norm(p1 - p2)
-        iters = int(dist / 400) + 1
-        if iters > 1:
-            v = (p2 - p1) / iters
-            for i in range(iters):
-                pa = p1 + v * i
-                pb = p1 + v * (i + 1)
-                inc2 = pb - pa
-                midsp = (pa + pb) / 2
-                walls.append(Wall(math.atan2(inc2[0], inc2[1]), midsp[0], midsp[1]))
-        else:
-            inc = p2 - p1
-            midp = (p2 + p1) / 2
-            walls.append(Wall(math.atan2(inc[0], inc[1]), midp[0], midp[1]))
-
-    # Compute the number of nodes
-    #      room +  room walls      + humans               + objects
-    n_nodes = 1 + len(walls) + len(data['humans']) + len(data['objects'])
-
-    # Feature dimensions
-    all_features, n_features = get_features('2')
-    features = th.zeros(n_nodes, n_features)
-
-    # Nodes variables
-    typeMap = dict()
-    position_by_id = {}
-    src_nodes = []  # List to store source nodes
-    dst_nodes = []  # List to store destiny nodes
-
-    # Labels
-    labels = th.zeros([1, 1])  # A 1x1 tensor
-    labels[0][0] = th.tensor(float(data['score']) / 100.)
-
-    # room (id 0) flobal node
-    room_id = 0
-    max_used_id = 0
-    typeMap[room_id] = 'l'  # 'l' for 'room' (lounge)
-    position_by_id[0] = [0, 0]
-    features[room_id, all_features.index('room')] = 1.
-    features[room_id, all_features.index('room_humans')] = len(data['humans'])
-    features[room_id, all_features.index('room_humans2')] = len(data['humans']) * len(data['humans'])
-
-    # humans
-    for h in data['humans']:
-        src_nodes.append(h['id'])
-        dst_nodes.append(room_id)
-        edge_types.append(rels.index('p_l'))
-        edge_norms.append([1. / len(data['humans'])])
-
-        src_nodes.append(room_id)
-        dst_nodes.append(h['id'])
-        edge_types.append(rels.index('l_p'))
-        edge_norms.append([1.])
-
-        typeMap[h['id']] = 'p'  # 'p' for 'person'
-        max_used_id = max(h['id'], max_used_id)
-        xpos = float(h['xPos']) / 1000.
-        ypos = float(h['yPos']) / 1000.
-
-        position_by_id[h['id']] = [xpos, ypos]
-        orientation = float(h['orientation']) / 180. * math.pi
-        while orientation > math.pi: orientation -= 2. * math.pi
-        while orientation < -math.pi: orientation += 2. * math.pi
-        if orientation > math.pi:
-            orientation -= math.pi
-        elif orientation < -math.pi:
-            orientation += math.pi
-
-        features[h['id'], all_features.index('human')] = 1.
-        features[h['id'], all_features.index('hum_orientation_sin')] = math.sin(orientation)
-        features[h['id'], all_features.index('hum_orientation_cos')] = math.cos(orientation)
-        features[h['id'], all_features.index('hum_x_pos')] = 2. * xpos
-        features[h['id'], all_features.index('hum_y_pos')] = -2. * ypos
-
-    # objects
-    for o in data['objects']:
-        src_nodes.append(o['id'])
-        dst_nodes.append(room_id)
-        edge_types.append(rels.index('o_l'))
-        edge_norms.append([1. / len(data['objects'])])
-
-        src_nodes.append(room_id)
-        dst_nodes.append(o['id'])
-        edge_types.append(rels.index('l_o'))
-        edge_norms.append([1.])
-
-        typeMap[o['id']] = 'o'  # 'o' for 'object'
-        max_used_id = max(o['id'], max_used_id)
-        xpos = float(o['xPos']) / 1000.
-        ypos = float(o['yPos']) / 1000.
-
-        position_by_id[o['id']] = [xpos, ypos]
-        orientation = float(o['orientation']) / 180. * math.pi
-        while orientation > math.pi: orientation -= 2. * math.pi
-        while orientation < -math.pi: orientation += 2. * math.pi
-        features[o['id'], all_features.index('object')] = 1
-        features[o['id'], all_features.index('obj_orientation_sin')] = math.sin(orientation)
-        features[o['id'], all_features.index('obj_orientation_cos')] = math.cos(orientation)
-        features[o['id'], all_features.index('obj_x_pos')] = 2. * xpos
-        features[o['id'], all_features.index('obj_y_pos')] = -2. * ypos
-
-    # walls
-    wids = dict()
-    for wall in walls:
-        max_used_id += 1
-        wall_id = max_used_id
-        wids[wall] = wall_id
-        typeMap[wall_id] = 'w'  # 'w' for 'walls'
-
-        src_nodes.append(wall_id)
-        dst_nodes.append(room_id)
-        edge_types.append(rels.index('w_l'))
-        edge_norms.append([1. / len(walls)])
-
-        src_nodes.append(room_id)
-        dst_nodes.append(wall_id)
-        edge_types.append(rels.index('l_w'))
-        edge_norms.append([1.])
-
-        position_by_id[wall_id] = [wall.xpos / 1000, wall.ypos / 1000]
-        features[wall_id, all_features.index('wall')] = 1.
-        features[wall_id, all_features.index('wall_orientation_sin')] = math.sin(wall.orientation)
-        features[wall_id, all_features.index('wall_orientation_cos')] = math.cos(wall.orientation)
-        features[wall_id, all_features.index('wall_x_pos')] = 2. * wall.xpos / 1000.
-        features[wall_id, all_features.index('wall_y_pos')] = -2. * wall.ypos / 1000.
-
-    # interactions
-    for link in data['links']:
-        typeLdir = typeMap[link[0]] + '_' + typeMap[link[1]]
-        typeLinv = typeMap[link[1]] + '_' + typeMap[link[0]]
-
-        src_nodes.append(link[0])
-        dst_nodes.append(link[1])
-        edge_types.append(rels.index(typeLdir))
-        edge_norms.append([1.])
-
-        src_nodes.append(link[1])
-        dst_nodes.append(link[0])
-        edge_types.append(rels.index(typeLinv))
-        edge_norms.append([1.])
-
-    # self edges
-    for node_id in range(n_nodes):
-        r_type = typeMap[node_id].upper()
-
-        src_nodes.append(node_id)
-        dst_nodes.append(node_id)
-        edge_types.append(rels.index(r_type))
-        edge_norms.append([1.])
-
-    src_nodes = th.LongTensor(src_nodes)
-    dst_nodes = th.LongTensor(dst_nodes)
-
-    edge_types = th.LongTensor(edge_types)
-    edge_norms = th.Tensor(edge_norms)
-
-    return src_nodes, dst_nodes, n_nodes, features, None, edge_types, edge_norms, position_by_id, typeMap, labels, []
-
-
 N_INTERVALS = 3
 FRAMES_INTERVAL = 1.
 
@@ -710,9 +125,9 @@ MAX_ROT = 4.
 MAX_HUMANS = 15
 
 
-def initializeAlt3(data, w_segments=[]):
+def initializeAlt1(data, w_segments=[]):
     # Initialize variables
-    rels, num_rels = get_relations('3')
+    rels, num_rels = get_relations()
     edge_types = []  # List to store the relation of each edge
     edge_norms = []  # List to store the norm of each edge
     max_used_id = 0  # Initialise id counter (0 for the robot)
@@ -747,7 +162,7 @@ def initializeAlt3(data, w_segments=[]):
     n_nodes = 1 + len(walls) + len(data['people']) + len(data['objects']) + 1
 
     # Feature dimensions
-    all_features, n_features = get_features('3')
+    all_features, n_features = get_features()
     features = th.zeros(n_nodes, n_features)
     edge_feats_list = []
 
@@ -757,9 +172,6 @@ def initializeAlt3(data, w_segments=[]):
     src_nodes = []  # List to store source nodes
     dst_nodes = []  # List to store destiny nodes
 
-    # Labels
-    # labels = th.zeros([1, 1])  # A 1x1 tensor
-    # labels[0][0] = th.tensor(float(data['label_Q1']) / 100.)
     if 'label_Q1' in data.keys():
         labels = np.array([float(data['label_Q1']), float(data['label_Q2'])])
     else:
@@ -832,8 +244,6 @@ def initializeAlt3(data, w_segments=[]):
         edge_features[rels.index('r_p')] = 1
         edge_features[-1] = dist
         edge_feats_list.append(edge_features)
-
-
 
     # objects
     for o in data['objects']:
@@ -931,13 +341,6 @@ def initializeAlt3(data, w_segments=[]):
         typeMap[wall_id] = 'w'  # 'w' for 'walls'
         max_used_id += 1
 
-		# # uncomment for links between wall nodes
-        # if w_i == len(walls)-1:
-        #     next_wall_id = max_used_id-len(walls)
-        # else:
-        #     next_wall_id = max_used_id
-        # # ------------------------------------
-
         dist = math.sqrt((wall.xpos / 1000.) ** 2 + (wall.ypos / 1000.) ** 2)
 
         # Links to room node
@@ -961,32 +364,6 @@ def initializeAlt3(data, w_segments=[]):
         edge_features[rels.index('r_w')] = 1
         edge_features[-1] = dist
         edge_feats_list.append(edge_features)
-
-        # # Links between wall nodes
-        # wall_next = walls[(w_i + 1) % len(walls)]
-        # dist_wnodes = math.sqrt((wall.xpos / 1000. - wall_next.xpos / 1000.) ** 2 +
-        #                         (wall.ypos / 1000. - wall_next.ypos / 1000.) ** 2)
-        
-        # src_nodes.append(wall_id)
-        # dst_nodes.append(next_wall_id)
-        # edge_types.append(rels.index('w_w'))
-        # edge_norms.append([1.])
-        
-        # src_nodes.append(next_wall_id)
-        # dst_nodes.append(wall_id)
-        # edge_types.append(rels.index('w_w'))
-        # edge_norms.append([1.])
-        
-        # edge_features = th.zeros(num_rels + 4)
-        # edge_features[rels.index('w_w')] = 1
-        # edge_features[-1] = dist_wnodes
-        # edge_feats_list.append(edge_features)
-        
-        # edge_features = th.zeros(num_rels + 4)
-        # edge_features[rels.index('w_w')] = 1
-        # edge_features[-1] = dist_wnodes
-        # edge_feats_list.append(edge_features)
-        # # ----------------------------------
 
         position_by_id[wall_id] = [wall.xpos / 100., wall.ypos / 100.]
 
@@ -1038,7 +415,6 @@ def initializeAlt3(data, w_segments=[]):
                 edge_features[-1] = dist
                 edge_feats_list.append(edge_features)
 
-
     # interaction links
     for link in data['interaction']:
         typeLdir = typeMap[link['src']] + '_' + typeMap[link['dst']]
@@ -1067,25 +443,6 @@ def initializeAlt3(data, w_segments=[]):
         edge_features[rels.index(typeLinv)] = 1
         edge_features[-1] = dist
         edge_feats_list.append(edge_features)
-
-    # Edges for the room node (Global Node)
-    # for node_id in range(n_nodes):
-    #     typeLdir = typeMap[room_id] + '_' + typeMap[node_id]
-    #     typeLinv = typeMap[node_id] + '_' + typeMap[room_id]
-    #     if node_id == room_id:
-    #         continue
-
-    #     src_nodes.append(room_id)
-    #     dst_nodes.append(node_id)
-    #     edge_types.append(rels.index(typeLdir))
-    #     edge_norms.append([1.])
-    #     edge_feats.append(0)
-
-    #     src_nodes.append(node_id)
-    #     dst_nodes.append(room_id)
-    #     edge_types.append(rels.index(typeLinv))
-    #     edge_norms.append([1. / max_used_id])
-    #     edge_feats.append(0)
 
     # self edges
     for node_id in range(n_nodes):
@@ -1121,9 +478,10 @@ class SocNavDataset(DGLDataset):
     def __init__(self, path, alt, mode='train', raw_dir='data/', init_line=-1, end_line=-1, loc_limit=limit,
                  force_reload=False, verbose=True, debug=False):
         if type(path) is str:
-            self.path = raw_dir + path
+            self.path = raw_dir + "/" + path
         else:
             self.path = path
+
         self.mode = mode
         self.alt = alt
         self.init_line = init_line
@@ -1150,11 +508,6 @@ class SocNavDataset(DGLDataset):
 
         if self.alt == '1':
             self.dataloader = initializeAlt1
-        elif self.alt == '2':
-            self.dataloader = initializeAlt2
-            self.grid_data = graphData(*generate_grid_graph_data())
-        elif self.alt == '3':
-            self.dataloader = initializeAlt3
         else:
             print('Introduce a valid initialize alternative')
             sys.exit(-1)
@@ -1167,7 +520,7 @@ class SocNavDataset(DGLDataset):
         return graphs_path, info_path
 
     def generate_final_graph(self, raw_data):
-        rels, num_rels = get_relations(self.alt)
+        rels, num_rels = get_relations()
         room_graph_data = graphData(*self.dataloader(raw_data))
         if self.grid_data is not None:
             # Merge room and grid graph
@@ -1213,7 +566,7 @@ class SocNavDataset(DGLDataset):
         self.data['typemaps'].append(typeMap)
         self.data['coordinates'].append(position_by_id)
         self.data['identifiers'].append(raw_data['identifier'])
-        self.data['descriptor_header'] = get_node_descriptor_header(self.alt)
+        self.data['descriptor_header'] = get_node_descriptor_header()
 
         self.labels.append(labels)
 
@@ -1234,8 +587,7 @@ class SocNavDataset(DGLDataset):
         graphs_in_interval = [graph_data]
         frames_in_interval = [data[0]]
         for frame in data[1:]:
-            if math.fabs(frame['timestamp'] - frames_in_interval[-1][
-                'timestamp']) < FRAMES_INTERVAL:  # Truncated to N seconds
+            if math.fabs(frame['timestamp'] - frames_in_interval[-1]['timestamp']) < FRAMES_INTERVAL:  # Truncated to N seconds
                 continue
             graphs_in_interval.append(graphData(*self.dataloader(frame, w_segments)))
             frames_in_interval.append(frame)
@@ -1261,14 +613,14 @@ class SocNavDataset(DGLDataset):
             self.data['typemaps'].append(typeMap)
             self.data['coordinates'].append(coordinates)
             self.data['identifiers'].append(data[0]['ID'])
-            self.data['descriptor_header'] = get_node_descriptor_header(self.alt)
+            self.data['descriptor_header'] = get_node_descriptor_header()
 
         except Exception:
             print("Error loading one graph")
             raise
 
     def merge_graphs(self, graphs_in_interval):
-        all_features, n_features = get_features(self.alt)
+        all_features, n_features = get_features()
         new_features = ['is_t_0', 'is_t_m1', 'is_t_m2']
         f_list = []
         src_list = []
@@ -1279,7 +631,7 @@ class SocNavDataset(DGLDataset):
         typeMap = dict()
         coordinates = dict()
         n_nodes = 0
-        rels, num_rels = get_relations(self.alt)
+        rels, num_rels = get_relations()
         g_i = 0
         offset = graphs_in_interval[0].n_nodes
         for g in graphs_in_interval:

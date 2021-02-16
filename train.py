@@ -14,7 +14,6 @@ from torch_geometric.data import Data
 from sklearn.metrics import mean_squared_error
 import socnav
 
-sys.path.append('./nets')
 from select_gnn import SELECT_GNN
 
 if torch.cuda.is_available() is True:
@@ -28,14 +27,6 @@ def describe_model(model):
     print("Model's state_dict:")
     for param_tensor in model.state_dict():
         print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-
-
-# def collate(batch):
-#     graphs, labels = map(list, zip(*batch))
-#     batched_graphs = dgl.batch(graphs).to(torch.device(device))
-#     labels = torch.tensor(labels).to(torch.device(device))
-
-#     return batched_graphs, labels
 
 
 def collate(batch):
@@ -114,7 +105,7 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
     elif nonlinearity == 'elu':
         nonlinearity = F.elu
 
-    loss_fcn = torch.nn.MSELoss()  # (reduction='sum')
+    loss_fcn = torch.nn.MSELoss()
 
     print('=========================')
     # print('HEADS', heads)
@@ -136,11 +127,11 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
     # create the dataset
     time_dataset_a = time.time()
     print('Loading training set...')
-    train_dataset = socnav.SocNavDataset(training_file, mode='train', alt=graph_type, raw_dir='')
+    train_dataset = socnav.SocNavDataset(training_file, mode='train', alt=graph_type, raw_dir='raw_data')
     print('Loading dev set...')
-    valid_dataset = socnav.SocNavDataset(dev_file, mode='valid', alt=graph_type, raw_dir='')
+    valid_dataset = socnav.SocNavDataset(dev_file, mode='valid', alt=graph_type, raw_dir='raw_data')
     print('Loading test set...')
-    test_dataset = socnav.SocNavDataset(test_file, mode='valid', alt=graph_type, raw_dir='')
+    test_dataset = socnav.SocNavDataset(test_file, mode='valid', alt=graph_type, raw_dir='raw_data')
     print('Done loading files')
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate)
     valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate)
@@ -149,7 +140,7 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
     for _ in range(5):
         print(f'TIME {time_dataset_b - time_dataset_a}')
 
-    _, num_rels = socnav.get_relations(graph_type)
+    _, num_rels = socnav.get_relations()
     num_rels += (socnav.N_INTERVALS - 1) * 2
     cur_step = 0
     best_loss = -1
@@ -162,41 +153,31 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
     else:
         num_edge_feats = None
     g = dgl.batch(train_dataset.graphs)
-    num_hidden_layers_rgcn = 3
-    num_hidden_layers_gat = 3
-    num_hidden_layer_pairs = 3
-    K = 10
+
     aggregator_type = 'mean'  # For MPNN
-    # heads = ([num_heads] * gnn_layers) + [num_out_heads]
+
     # define the model
-    model = SELECT_GNN(num_feats,
-                       num_edge_feats,
-                       2,  # n_classes
-                       num_hidden,
-                       gnn_layers,
-                       in_drop,
-                       nonlinearity,
-                       final_activation,
-                       1,
-                       net,
-                       K,  # sage filters
-                       heads,
-                       num_rels,
-                       num_rels,
-                       g,
-                       residual,
-                       aggregator_type,
-                       attn_drop,
-                       num_hidden_layers_rgcn,
-                       num_hidden_layers_gat,
-                       num_hidden_layer_pairs,
-                       alpha
+    model = SELECT_GNN(num_features=num_feats,
+                       num_edge_feats=num_edge_feats,
+                       n_classes=2,
+                       num_hidden=num_hidden,
+                       gnn_layers=gnn_layers,
+                       dropout=in_drop,
+                       activation=nonlinearity,
+                       final_activation=final_activation,
+                       gnn_type=net,
+                       num_heads=heads,
+                       num_rels=num_rels,
+                       num_bases=num_rels,
+                       g=g,
+                       residual=residual,
+                       aggregator_type=aggregator_type,
+                       attn_drop=attn_drop,
+                       alpha=alpha
                        )
     # define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    # for name, param in model.named_parameters():
-    # if param.requires_grad:
-    # print(name, param.data.shape)
+
     if previous_model is not None:
         model.load_state_dict(torch.load(previous_model, map_location=device))
 
@@ -218,27 +199,18 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
             else:
                 efeats = None
             labels = labels.to(device)
-            if fw == 'dgl':
-                model.gnn_object.g = subgraph
-                model.g = subgraph
-                for layer in model.gnn_object.layers:
+            model.gnn_object.g = subgraph
+            model.g = subgraph
+            for layer in model.gnn_object.layers:
                     layer.g = subgraph
-                if net in ['rgcn']:
+            if net in ['rgcn']:
                     logits = model(feats.float(), subgraph.edata['rel_type'].squeeze().to(device), None)
-                elif net in ['mpnn']:
+            elif net in ['mpnn']:
                     logits = model(feats.float(), subgraph, efeats.float())
-                else:
-                    logits = model(feats.float(), subgraph, None)
             else:
-                model.g = subgraph
-                if net in ['pgat', 'pgcn', 'ptag', 'psage', 'pcheb']:
-                    data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device))
-                else:
-                    data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device),
-                                edge_type=subgraph.edata['rel_type'].squeeze().to(device))
+                    logits = model(feats.float(), subgraph, None)
 
-                logits = model(data, subgraph, None)
-            a = logits  ## [getMaskForBatch(subgraph)].flatten()
+            a = logits
             a = a.flatten()
             b = labels.float()
             b = b.flatten()
@@ -255,11 +227,9 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
             if not_learning:
                 import sys
                 print('Not learning')
-                # sys.exit(1)
             else:
                 pass
-                # print('Diff: ', (a.data-b.data).sum())
-            # print(loss.item())
+
             loss_list.append(loss.item())
         loss_data = np.array(loss_list).mean()
         print('Loss: {}'.format(loss_data))
@@ -288,13 +258,14 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
             # early stop
             if best_loss > mean_val_loss or best_loss < 0:
                 print('Saving...')
-                directory = str(index).zfill(5)
+                directory = "model_params"
                 os.system('mkdir ' + directory)
                 best_loss = mean_val_loss
+
                 # Save the model
                 torch.save(model.state_dict(), directory + '/SOCNAV_V2.tch')
                 params = {'loss': best_loss,
-                          'net': net,  # str(type(net)),
+                          'net': net,
                           'fw': fw,
                           'gnn_layers': gnn_layers,
                           'num_feats': num_feats,
@@ -311,19 +282,15 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
                           'residual': residual,
                           'num_bases': num_rels,
                           'num_rels': num_rels,
-                          'K': K,
-                          'n_hlayers_rgcn': num_hidden_layers_rgcn,
-                          'n_hlayers_gat': num_hidden_layers_gat,
-                          'n_hlayers_pairs': num_hidden_layer_pairs,
                           'aggregator_type': aggregator_type
                           }
                 pickle.dump(params, open(directory + '/SOCNAV_V2.prms', 'wb'))
                 cur_step = 0
             else:
-                # print(best_loss, mean_val_loss)
                 cur_step += 1
                 if cur_step >= patience:
                     break
+
     test_score_list = []
     model.load_state_dict(torch.load(directory + '/SOCNAV_V2.tch', map_location=device))
     for batch, test_data in enumerate(test_dataloader):
@@ -356,8 +323,8 @@ if __name__ == '__main__':
     if not retrain:
         print("If you want to retrain, use \"python3 train.py file.prms file.tch\"")
         best_loss = main('train_set.txt', 'dev_set.txt', 'test_set.txt',
-                         graph_type='3',  #
-                         net='rgcn',  # rgcn
+                         graph_type='1',
+                         net='mpnn',
                          epochs=1000,
                          patience=6,
                          batch_size=31,  # 40,
