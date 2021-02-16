@@ -12,9 +12,6 @@ show_graph = len(sys.argv) > 1
 if show_graph:
     import matplotlib.pyplot as plt
 
-
-import socnav
-
 def print_best_options(list_of_tasks):
     best_loss = -1
     best = None
@@ -24,7 +21,7 @@ def print_best_options(list_of_tasks):
         # Get info
         selected = list_of_tasks[index]
         tloss, dloss, fw, net = selected['test_loss'], selected['dev_loss'], selected['fw'], selected['gnn_network']
-        # print (loss, fw, net)
+
         # Handle: pending/failed/done
         if dloss < 0.0:
             if selected['train_loss'] == 0.0:
@@ -33,19 +30,20 @@ def print_best_options(list_of_tasks):
                 pending += 1
         else:
             done += 1
-            #print('DONE', selected)
+
         # Handle overall best
         if (dloss < best_loss and dloss > 0.) or best_loss <= 0:
             best_loss = dloss
             best = list_of_tasks[index]
             best_index = index
+
         # Handle best by type
         if (fw, net) in best_by_option:
             if dloss > 0:
-                if dloss < best_by_option[(fw,net)]['dev_loss']:
-                    best_by_option[(fw,net)] = selected
+                if dloss < best_by_option[(fw, net)]['dev_loss']:
+                    best_by_option[(fw, net)] = selected
         elif dloss>0:
-            best_by_option[(fw,net)] = selected
+            best_by_option[(fw, net)] = selected
 
     print('BEST BY OPTION')
     for k in best_by_option:
@@ -84,53 +82,33 @@ def print_best_options(list_of_tasks):
 
 def get_random_hyperparameters(identifier):
     fw_net_map = {0: ('dgl', 'rgcn'), 1: ('dgl', 'gat'), 2: ('dgl', 'mpnn')}
-    #fw_net_map = {0: ('dgl', 'rgcn'), 1: ('dgl', 'mpnn')}
-    # fw_net_map = {0: ('dgl', 'gat')}
-
     fw, net = fw_net_map[randrange(len(fw_net_map))]
-    if net in ['rgcn', 'rgat', 'rgat2', 'rgat3']:
-        graph_type = choice(['relational', '4'])
-    else:
-        graph_type = '4'
-
-
     gnn_network = net
-    graph_type = '3'
-
-    # print('image_width: {}'.format(image_width))
+    graph_type = '1'
     gnn_layers = randrange(start=5, stop=9)
-    # print('gnn_layers: {}'.format(gnn_layers))
     last_gnn_units = randrange(start=2, stop=20)
-    # print('last_gnn_units: {}'.format(last_gnn_units))
     first_gnn_units = randrange(start=20, stop=90)
-
-    # print('first_gnn_units: {}'.format(first_gnn_units))
     gnn_units = [first_gnn_units]
 
     if 'gat' in net:
         first_gnn_heads = randrange(start=3, stop=10)
-        # print('first_gnn_heads: {}'.format(first_gnn_heads))
         last_gnn_heads = randrange(start=3, stop=10)
-        # print('last_gnn_heads: {}'.format(first_gnn_heads))
     else:
         first_gnn_heads = 1
         last_gnn_heads = 1
-    gnn_heads = [first_gnn_heads]
 
+    gnn_heads = [first_gnn_heads]
     diff_units = float(last_gnn_units-first_gnn_units)/float(gnn_layers-1)
     diff_heads = float(last_gnn_heads-first_gnn_heads)/float(gnn_layers-1)
+
     for l in range(1, gnn_layers-1):
         hidden_units = int(first_gnn_units + diff_units*l)
         hidden_heads = int(first_gnn_heads + diff_heads*l)
-        # print('layer {} units: {}'.format(l, hidden_units))
-        # print('layer {} heads: {}'.format(l, hidden_heads))
         gnn_units.append(hidden_units)
         gnn_heads.append(hidden_heads)
-    # print('last_gnn_units: {}'.format(last_gnn_units))
-    gnn_units.append(last_gnn_units)
-    # print('last_gnn_heads: {}'.format(last_gnn_heads))
-    gnn_heads.append(last_gnn_heads)
 
+    gnn_units.append(last_gnn_units)
+    gnn_heads.append(last_gnn_heads)
     hyperparameters = {
         'identifier': identifier,
         'fw': fw,

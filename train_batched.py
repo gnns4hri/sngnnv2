@@ -31,10 +31,7 @@ from torch_geometric.data import Data
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 
-sys.path.append('./nets')
 from select_gnn import SELECT_GNN
-
-
 import socnav
 
 import random
@@ -75,22 +72,14 @@ def evaluate(feats, efeats, model, subgraph, labels, loss_fcn, fw, net):
         model.eval()
         model.gnn_object.g = subgraph
         model.g = subgraph
-        if fw == 'dgl':
-            for layer in model.gnn_object.layers:
-                layer.g = subgraph
-            if net in ['rgcn']:
-                output = model(feats.float(), subgraph.edata['rel_type'].squeeze().to(device), None)
-            elif net in ['mpnn']:
-                output = model(feats.float(), subgraph, efeats.float())
-            else:
-                output = model(feats.float(), subgraph, None)
+        for layer in model.gnn_object.layers:
+            layer.g = subgraph
+        if net in ['rgcn']:
+            output = model(feats.float(), subgraph.edata['rel_type'].squeeze().to(device), None)
+        elif net in ['mpnn']:
+            output = model(feats.float(), subgraph, efeats.float())
         else:
-            if net in ['pgat', 'pgcn', 'ptag', 'psage', 'pcheb']:
-                data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device))
-            else:
-                data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device),
-                            edge_type=subgraph.edata['rel_type'].squeeze().to(device))
-            output = model(data, subgraph)
+            output = model(feats.float(), subgraph, None)
 
         a = output.flatten()
         b = labels.float().flatten()
@@ -139,7 +128,7 @@ def main(training_file, dev_file, test_file, task, previous_model=None):
     alpha = task['alpha']
     attn_drop = task['attn_drop']
     num_bases = task['num_bases']
-    _, num_rels = socnav.get_relations(graph_type)
+    _, num_rels = socnav.get_relations()
     num_rels += (socnav.N_INTERVALS - 1) * 2
     if num_bases < 1:
         num_bases = num_rels
@@ -182,18 +171,18 @@ def main(training_file, dev_file, test_file, task, previous_model=None):
     # create the dataset
     time_dataset_a = time.time()
     print('Loading training set...')
-    train_dataset = socnav.SocNavDataset(training_file, mode='train', alt=graph_type, raw_dir='')
+    train_dataset = socnav.SocNavDataset(training_file, mode='train', alt=graph_type, raw_dir='raw_data')
     print('Loading dev set...')
-    valid_dataset = socnav.SocNavDataset(dev_file, mode='valid', alt=graph_type, raw_dir='')
+    valid_dataset = socnav.SocNavDataset(dev_file, mode='valid', alt=graph_type, raw_dir='raw_data')
     print('Loading test set...')
-    test_dataset = socnav.SocNavDataset(test_file, mode='test', alt=graph_type, raw_dir='')
+    test_dataset = socnav.SocNavDataset(test_file, mode='test', alt=graph_type, raw_dir='raw_data')
     print('Done loading files')
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate)
     valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate)
-    time_dataset_b = time.time()
-    for _ in range(5):
-        print(f'TIME {time_dataset_b - time_dataset_a}')
+    # time_dataset_b = time.time()
+    # for _ in range(5):
+    #     print(f'TIME {time_dataset_b - time_dataset_a}')
 
 
     cur_step = 0
@@ -207,37 +196,30 @@ def main(training_file, dev_file, test_file, task, previous_model=None):
     else:
         num_edge_feats = None
     g = dgl.batch(train_dataset.graphs)
-    K = 10
     aggregator_type = 'mean'  # For MPNN
-    # heads = ([num_heads] * gnn_layers) + [num_out_heads]
+
     # define the model
-    model = SELECT_GNN(num_feats,
-                       num_edge_feats,
-                       n_classes,
-                       num_hidden,
-                       gnn_layers,
-                       in_drop,
-                       nonlinearity,
-                       final_activation,
-                       1,
-                       net,
-                       K,  # sage filters
-                       heads,
-                       num_rels,
-                       num_bases,
-                       g,
-                       residual,
-                       aggregator_type,
-                       attn_drop,
-                       gnn_layers,
-                       gnn_layers,
-                       gnn_layers
+    model = SELECT_GNN(num_features=num_feats,
+                       num_edge_feats=num_edge_feats,
+                       n_classes=2,
+                       num_hidden=num_hidden,
+                       gnn_layers=gnn_layers,
+                       dropout=in_drop,
+                       activation=nonlinearity,
+                       final_activation=final_activation,
+                       gnn_type=net,
+                       num_heads=heads,
+                       num_rels=num_rels,
+                       num_bases=num_rels,
+                       g=g,
+                       residual=residual,
+                       aggregator_type=aggregator_type,
+                       attn_drop=attn_drop,
+                       alpha=alpha
                        )
     # define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    # for name, param in model.named_parameters():
-    # if param.requires_grad:
-    # print(name, param.data.shape)
+
     if previous_model is not None:
         model.load_state_dict(torch.load(previous_model, map_location=device))
 
@@ -259,27 +241,18 @@ def main(training_file, dev_file, test_file, task, previous_model=None):
             else:
                 efeats = None
             labels = labels.to(device)
-            if fw == 'dgl':
-                model.gnn_object.g = subgraph
-                model.g = subgraph
-                for layer in model.gnn_object.layers:
-                    layer.g = subgraph
-                if net in ['rgcn']:
-                    logits = model(feats.float(), subgraph.edata['rel_type'].squeeze().to(device), None)
-                elif net in ['mpnn']:
-                    logits = model(feats.float(), subgraph, efeats.float())
-                else:
-                    logits = model(feats.float(), subgraph, None)
+            model.gnn_object.g = subgraph
+            model.g = subgraph
+            for layer in model.gnn_object.layers:
+                layer.g = subgraph
+            if net in ['rgcn']:
+                logits = model(feats.float(), subgraph.edata['rel_type'].squeeze().to(device), None)
+            elif net in ['mpnn']:
+                logits = model(feats.float(), subgraph, efeats.float())
             else:
-                model.g = subgraph
-                if net in ['pgat', 'pgcn', 'ptag', 'psage', 'pcheb']:
-                    data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device))
-                else:
-                    data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device),
-                                edge_type=subgraph.edata['rel_type'].squeeze().to(device))
+                logits = model(feats.float(), subgraph, None)
 
-                logits = model(data, subgraph)
-            a = logits  ## [getMaskForBatch(subgraph)].flatten()
+            a = logits
             a = a.flatten()
             b = labels.float()
             b = b.flatten()
@@ -299,8 +272,7 @@ def main(training_file, dev_file, test_file, task, previous_model=None):
                 sys.exit(1)
             else:
                 pass
-                # print('Diff: ', (a.data-b.data).sum())
-            # print(loss.item())
+
             loss_list.append(loss.item())
         loss_data = np.array(loss_list).mean()
         if loss_data < min_train_loss:
@@ -367,7 +339,6 @@ def main(training_file, dev_file, test_file, task, previous_model=None):
                     'residual': residual,
                     'num_bases': num_bases,
                     'num_rels': num_rels,
-                    'K': K,
                     'aggregator_type': aggregator_type,
                     'train_scores': output_list_records_train_loss,
                     'dev_scores': output_list_records_dev_loss

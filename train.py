@@ -46,22 +46,14 @@ def evaluate(feats, efeats, model, subgraph, labels, loss_fcn, fw, net):
         model.eval()
         model.gnn_object.g = subgraph
         model.g = subgraph
-        if fw == 'dgl':
-            for layer in model.gnn_object.layers:
-                layer.g = subgraph
-            if net in ['rgcn']:
-                output = model(feats.float(), subgraph.edata['rel_type'].squeeze().to(device), None)
-            elif net in ['mpnn']:
-                output = model(feats.float(), subgraph, efeats.float())
-            else:
-                output = model(feats.float(), subgraph, None)
+        for layer in model.gnn_object.layers:
+            layer.g = subgraph
+        if net in ['rgcn']:
+            output = model(feats.float(), subgraph.edata['rel_type'].squeeze().to(device), None)
+        elif net in ['mpnn']:
+            output = model(feats.float(), subgraph, efeats.float())
         else:
-            if net in ['pgat', 'pgcn', 'ptag', 'psage', 'pcheb']:
-                data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device))
-            else:
-                data = Data(x=feats.float(), edge_index=torch.stack(subgraph.edges()).to(device),
-                            edge_type=subgraph.edata['rel_type'].squeeze().to(device))
-            output = model(data, subgraph)
+            output = model(feats.float(), subgraph, None)
 
         a = output.flatten()
         b = labels.float().flatten()
@@ -136,9 +128,9 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate)
     valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate)
-    time_dataset_b = time.time()
-    for _ in range(5):
-        print(f'TIME {time_dataset_b - time_dataset_a}')
+    # time_dataset_b = time.time()
+    # for _ in range(5):
+    #     print(f'TIME {time_dataset_b - time_dataset_a}')
 
     _, num_rels = socnav.get_relations()
     num_rels += (socnav.N_INTERVALS - 1) * 2
@@ -153,7 +145,6 @@ def main(training_file, dev_file, test_file, graph_type=None, net=None, epochs=N
     else:
         num_edge_feats = None
     g = dgl.batch(train_dataset.graphs)
-
     aggregator_type = 'mean'  # For MPNN
 
     # define the model
