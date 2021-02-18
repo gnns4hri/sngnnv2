@@ -1,6 +1,6 @@
 # Repository information
 This document explains the structure of this repository and how to use it to train and test three different GNN models that you can find in the `nets` directory. 
-This repository reproduces the experiments conducted in the paper: 
+This repository reproduces the experiments conducted in the paper: https://arxiv.org/pdf/2102.08863.pdf
 
 ## Download the dataset
 The first step to train a model is to get the data.
@@ -62,7 +62,7 @@ Once all the hyperparameters are set the last step is to run the script:
 python3 train.py
 ```
 
-When it finishes, it will create a directory called "model_params" that store two pickle files with the parameters of the trained model.
+When it finishes, it will create a directory called "model_params" that store two files with the parameters and weights of the trained model.
 
 ### Batched training
 This way of training will launch a sequence of training processes with random hyperparameters.
