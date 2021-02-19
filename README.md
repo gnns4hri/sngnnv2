@@ -4,11 +4,11 @@ This repository reproduces the experiments conducted in the paper: https://arxiv
 
 ## Download the dataset
 The first step to train a model is to get the data.
-You can download our dataset from [here](http://gnns4hri.org/data.zip) and it will download a `data.zip` file.
+You can download our dataset from [here](http://gnns4hri.org/data.zip). 
 
-The compressed file must be unzipped in the `raw_data` directory under the directory `data`.
+The downloaded file must be unzipped in the `raw_data` directory under the directory `data`.
 It contains several JSON files with the information of the scenarios and its labels. 
-Hence, each file store data for several consecutive frames of the simulation which correspond to one label.
+Hence, each file stores data for several consecutive frames of the simulation which correspond to one label.
 In the end, you will have the following path to the JSON files:
 
 ```bash
@@ -18,8 +18,8 @@ Notice that there are 3 txt files in the raw data directory.
 These are used by the training script to divide the dataset into train, dev and test sets.
 
 ## Training instructions
-Once the dataset is set up, now we can train our models with that data. 
-We provide two ways of performing the training process: setting the hyperparameters manually to train a single model or perform consecutive pieces of training with random hyperparameters.
+Once the dataset is set up, we can train our models with that data. 
+We provide two ways of performing the training process: setting the hyperparameters manually to train a single model or perform several trainings with random hyperparameters.
 
 ### Single model training
 This section explains how to perform the training of a single model imputing the hyperparameters by hand.
@@ -48,8 +48,8 @@ best_loss = main('train_set.txt', 'dev_set.txt', 'test_set.txt',
                 cuda=True,
                 fw='dgl')
 ```
-`graph_type` must be set to always to one and `fw` to dgl.
-For the `net` field you can choose among the three kinds of models that we implement:
+`graph_type` must be always set to 1 and `fw` to dgl.
+For the `net` field you can choose among the three kinds of models that are currently implemented:
 "mpnn" for Message Passing Neural Network.
 "gat" for Graph Attention Network.
 "rgcn" for Relational Graph Convolutional Network.
@@ -57,7 +57,7 @@ For the `net` field you can choose among the three kinds of models that we imple
 `heads` filed set the dimension of the heads in the head attention mechanism implemented by the GAT model.
 The rest of the parameters are self-explanatory.
 
-Once all the hyperparameters are set the last step is to run the script:
+Once all the hyperparameters are set, the last step is to run the script:
 ```bash
 python3 train.py
 ```
@@ -95,6 +95,6 @@ Finally, the third argument is the desired resolution of the output image.
 Note that the higher the resolution the slower the creation process.
 
 In this repository, we provide a trained model as an example called "example_model".
-Besides, there is a directory ("jsons_test") that has JSON file for testing three different scenarios.
+Besides, there is a directory ("jsons_test") that has JSON files for testing three different scenarios.
 It also has videos of these scenarios.
 
