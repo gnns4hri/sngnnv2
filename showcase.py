@@ -73,7 +73,7 @@ def set_in_range(v, a, b):
 ###
 base = "showcase"
 bins = int(sys.argv[3])  # 80
-l_img = 5
+l_img = 6.3
 # bins = int(sys.argv[1])
 tick = 0
 params = {}
