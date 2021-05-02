@@ -59,6 +59,14 @@ def transform(world, params):
         w["links"] = []
     return w
 
+def set_in_range(v, a, b):
+    if v > b:
+        return b
+    if v < a:
+        return a
+    return v
+
+
 
 ###
 ###  C O N F I G    B L O C K
@@ -85,17 +93,23 @@ robot = Polygon(
 
 
 for scenario in scenario_list:
+    fnamee = scenario
+    if scenario.endswith('.json'):
+        fnamee = fnamee[:-5]
+    fnamee = fnamee.split('/')[-1]
     for tick in [1]:
         with open(scenario, "r") as f:
             data_sequence = json.loads(f.read())
         params["tick"] = tick
         num_str = str(tick).zfill(3)
-        dst_str_a = base + "_"
-        dst_str_b = "_" + num_str + ".png"
+        dst_str_a = base + "_" + fnamee + "_"
+        dst_str_b_q1 = "_" + num_str + "_Q1.png"
+        dst_str_b_q2 = "_" + num_str + "_Q2.png"
 
         print("Processing frame", tick)
 
-        z = np.zeros((bins, bins))
+        z_q1 = np.zeros((bins, bins))
+        z_q2 = np.zeros((bins, bins))
         xs = np.linspace(-l_img, l_img, bins)
         ys = np.linspace(-l_img, l_img, bins)
         for x_i, x in enumerate(xs):
@@ -104,6 +118,8 @@ for scenario in scenario_list:
             for y_i, y in enumerate(ys):
                 sn_sequence = []
                 within_room = True
+                white_zone = True
+                last_frame_room = None
                 cur_pose = data_sequence[-1]["robot_pose"]
                 xn = x
                 yn = y
@@ -200,6 +216,8 @@ for scenario in scenario_list:
 
                         room_map.append(new_wall)
                     sn.add_room(room_map)
+                    if last_frame_room is None:
+                        last_frame_room = room_poly
 
                     for interaction in data_structure["interaction"]:
                         sn.add_interaction([interaction["dst"], interaction["src"]])
@@ -217,26 +235,39 @@ for scenario in scenario_list:
                     else:
                         within_room = False
 
+                robot_point = Point(0,0)
+                if robot_point.within(Polygon(last_frame_room)):
+                    white_zone = False
+
                 if (
-                    sn_sequence
+                    within_room
                 ):  # within_room: # use within_room to restrict even more the valid positions of the robot
                     graph = SocNavDataset(sn_sequence, "1", "test", verbose=False)
-                    v = sngnn.predictOneGraph(graph)[0][0].item() * 255
-                    if v > 255.0:
-                        v = 255.0
-                    if v < 0:
-                        v = 0.0
+                    ret_gnn = sngnn.predictOneGraph(graph)[0]
+                    v_q1 = set_in_range(ret_gnn[0].item(), 0., 1.,) * 255
+                    v_q2 = set_in_range(ret_gnn[1].item(), 0., 1.,) * 255
                 else:
-                    v = 255
+                    if white_zone:
+                        v_q1 = 255
+                        v_q2 = 255
+                    else:
+                        v_q1 = 128
+                        v_q2 = 128                        
                 # print(v)
-                z[y_i, x_i] = v
+                z_q1[y_i, x_i] = v_q1
+                z_q2[y_i, x_i] = v_q2
 
-        z = z.astype(np.uint8)
-        z = cv2.flip(z, 0)
-        # resized = cv2.resize(z, (640, 640), interpolation = cv2.INTER_CUBIC)
-        resized = cv2.resize(z, (640, 640), interpolation=cv2.INTER_NEAREST)
-        resized = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
-        # resized = beautify_image(resized)
+        z_q1 = z_q1.astype(np.uint8)
+        z_q1 = cv2.flip(z_q1, 0)
+        resized_q1 = cv2.resize(z_q1, (640, 640), interpolation=cv2.INTER_NEAREST)
+        resized_q1 = beautify_image(cv2.cvtColor(resized_q1, cv2.COLOR_GRAY2BGR))
+
+
+
+        z_q2 = z_q2.astype(np.uint8)
+        z_q2 = cv2.flip(z_q2, 0)
+        resized_q2 = cv2.resize(z_q2, (640, 640), interpolation=cv2.INTER_NEAREST)
+        resized_q2 = beautify_image(cv2.cvtColor(resized_q2, cv2.COLOR_GRAY2BGR))
 
         # DRAW WALLS
         for wall in data_sequence[-1]["walls"]:
@@ -246,19 +277,29 @@ for scenario in scenario_list:
             y2_img = (-wall["y2"] + l_img) * 640 / (2 * l_img)
             thickness = 7
             color = (0, 0, 0)
-            resized = cv2.line(
-                resized,
+            resized_q1 = cv2.line(
+                resized_q1,
+                (int(x1_img), int(y1_img)),
+                (int(x2_img), int(y2_img)),
+                color,
+                thickness,
+            )
+            resized_q2 = cv2.line(
+                resized_q2,
                 (int(x1_img), int(y1_img)),
                 (int(x2_img), int(y2_img)),
                 color,
                 thickness,
             )
 
-        rows, cols = resized.shape[0:2]
-        Mr = cv2.getRotationMatrix2D((cols/2,rows/2),-data_sequence[-1]['robot_pose']['a']*180./math.pi,1)
-        final_img = cv2.warpAffine(resized, Mr, (rows, cols))
 
-        cv2.imwrite(dst_str_a + "clean" + dst_str_b, final_img)
+        rows, cols = resized_q1.shape[0:2]
+        Mr = cv2.getRotationMatrix2D((cols/2,rows/2),-data_sequence[-1]['robot_pose']['a']*180./math.pi,1)
+        final_img_q1 = cv2.warpAffine(resized_q1, Mr, (rows, cols),borderValue = (255, 255, 255))
+        final_img_q2 = cv2.warpAffine(resized_q2, Mr, (rows, cols),borderValue = (255, 255, 255))
+
+        cv2.imwrite(dst_str_a + "clean" + dst_str_b_q1, final_img_q1)
+        cv2.imwrite(dst_str_a + "clean" + dst_str_b_q2, final_img_q2)
 
 
         entities = {}
@@ -277,7 +318,8 @@ for scenario in scenario_list:
             # vx = int(math.cos(human["a"]) * scale)
             # vy = int(math.sin(human["a"]) * scale)
             # resized = cv2.line(resized, center_coordinates, (int(x_img)+vx, int(y_img)+vy), color, 2)
-            resized = cv2.circle(resized, center_coordinates, radius, color, thickness)
+            resized_q1 = cv2.circle(resized_q1, center_coordinates, radius, color, thickness)
+            resized_q2 = cv2.circle(resized_q2, center_coordinates, radius, color, thickness)            
 
         # DRAW Objects
         for object in data_sequence[-1]["objects"]:
@@ -288,7 +330,8 @@ for scenario in scenario_list:
             radius = 12
             thickness = 2
             color = (0, 255, 0)
-            resized = cv2.circle(resized, center_coordinates, radius, color, thickness)
+            resized_q1 = cv2.circle(resized_q1, center_coordinates, radius, color, thickness)
+            resized_q2 = cv2.circle(resized_q2, center_coordinates, radius, color, thickness)            
 
         # DRAW Goals
         for goal in data_sequence[-1]["goal"]:
@@ -298,17 +341,26 @@ for scenario in scenario_list:
             radius = 20
             thickness = 2
             color = (0, 155, 0)
-            resized = cv2.circle(resized, center_coordinates, radius, color, thickness)
+            resized_q1 = cv2.circle(resized_q1, center_coordinates, radius, color, thickness)
+            resized_q2 = cv2.circle(resized_q2, center_coordinates, radius, color, thickness)            
 
         # DRAW Interactions
         for interaction in data_sequence[-1]["interaction"]:
-            resized = cv2.line(
-                resized,
+            resized_q1 = cv2.line(
+                resized_q1,
                 entities[interaction["src"]],
                 entities[interaction["dst"]],
                 (50, 0, 155),
                 4,
             )
+            resized_q2 = cv2.line(
+                resized_q2,
+                entities[interaction["src"]],
+                entities[interaction["dst"]],
+                (50, 0, 155),
+                4,
+            )
+
 
         # DRAW Humans' orientations
         for human in data_sequence[-1]["people"]:
@@ -319,8 +371,11 @@ for scenario in scenario_list:
 
             vx = int(math.cos(human["a"]) * scale/2)
             vy = int(math.sin(human["a"]) * scale/2)
-            resized = cv2.line(resized, center_coordinates, (center_coordinates[0]+vx, center_coordinates[1]+vy), color, thickness)
+            resized_q1 = cv2.line(resized_q1, center_coordinates, (center_coordinates[0]+vx, center_coordinates[1]+vy), color, thickness)
+            resized_q2 = cv2.line(resized_q2, center_coordinates, (center_coordinates[0]+vx, center_coordinates[1]+vy), color, thickness)            
 
-        final_img = cv2.warpAffine(resized, Mr, (rows, cols))
-        cv2.imwrite(dst_str_a + "filled" + dst_str_b, final_img)
+        final_img_q1 = cv2.warpAffine(resized_q1, Mr, (rows, cols), borderValue = (255, 255, 255))
+        final_img_q2 = cv2.warpAffine(resized_q2, Mr, (rows, cols), borderValue = (255, 255, 255))        
+        cv2.imwrite(dst_str_a + "filled" + dst_str_b_q1, final_img_q1)
+        cv2.imwrite(dst_str_a + "filled" + dst_str_b_q2, final_img_q2)        
 
