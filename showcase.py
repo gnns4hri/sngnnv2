@@ -25,7 +25,11 @@ if len(sys.argv) < 2 or len(sys.argv) > 4:
     print("Please use this format: 'python3 showcase.py 'model_directory' 'file.json' resolution'")
     sys.exit(0)
 
-scenario_list = ["jsons_test/" + sys.argv[2]]
+# scenario_list = ["jsons_test/scenario1/S1_000000.json", "jsons_test/scenario1/S1_000004.json", "jsons_test/scenario2/S2_000000.json",
+#                  "jsons_test/scenario2/S2F_00000.json", "jsons_test/scenario2/S2FL_000000.json"]
+scenario_list = ["jsons_test/scenario2/S2FL_000000.json"]                 
+
+#scenario_list = ["jsons_test/" + sys.argv[2]]
 
 
 def get_transformation_matrix_for_pose(x, z, angle):
@@ -73,7 +77,7 @@ def set_in_range(v, a, b):
 ###
 base = "showcase"
 bins = int(sys.argv[3])  # 80
-l_img = 6.3
+l_img = 6.5
 # bins = int(sys.argv[1])
 tick = 0
 params = {}
