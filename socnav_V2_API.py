@@ -51,11 +51,10 @@ class SocNavAPI(object):
         global g_device
         g_device = self.device
         self.device2 = torch.device('cpu')
-        print(base)
         self.params = pickle.load(open(sys.argv[1] + '/SOCNAV_V2.prms', 'rb'), fix_imports=True)
         self.params['net'] = self.params['net'].lower()
-        print(self.params)
-        print(self.params['net'])
+        # print(self.params)
+        # print(self.params['net'])
         self.GNNmodel = SELECT_GNN(num_features=self.params['num_feats'],
                                    num_edge_feats=self.params['num_edge_feats'],
                                    n_classes=self.params['n_classes'],

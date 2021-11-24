@@ -41,13 +41,13 @@ class SELECT_GNN(nn.Module):
         self.alpha = alpha
 
         if self.gnn_type == 'rgcn':
-            print("GNN being used is RGCN")
+            # print("GNN being used is RGCN")
             self.gnn_object = self.rgcn()
         elif self.gnn_type == 'gat':
-            print("GNN being used is GAT")
+            # print("GNN being used is GAT")
             self.gnn_object = self.gat()
         elif self.gnn_type == 'mpnn':
-            print("GNN being used is MPNN")
+            # print("GNN being used is MPNN")
             self.gnn_object = self.mpnn()
 
     def rgcn(self):
