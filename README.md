@@ -2,6 +2,16 @@
 This document explains the structure of this repository and how to use it to train and test three different GNN models that you can find in the `nets` directory. 
 This repository reproduces the experiments conducted in the paper: https://arxiv.org/pdf/2102.08863.pdf
 
+## Using the model
+The script 'single_test.py' demonstrates how to use the API:
+```
+$ git clone https://github.com/gnns4hri/sngnnv2
+$ cd sngnnv2/
+$ python3 single_test.py example_model/ jsons_test/S1_000003.json 
+Result for a *single* query: tensor([0.9363, 0.7759]). It took 0.21820592880249023 seconds
+```
+Bear in mind that the script **does not use CUDA by default**.
+
 ## Download the dataset
 The first step to train a model is to get the data.
 You can download our dataset from [here](http://gnns4hri.org/data.zip). 
