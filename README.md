@@ -14,7 +14,7 @@ Bear in mind that the script **does not use CUDA by default**.
 
 ## Download the dataset
 The first step to train a model is to get the data.
-You can download our dataset from [here](http://gnns4hri.org/data.zip). 
+You can download our dataset from [here](https://gnns4hri.org/data.zip). 
 
 The downloaded file must be unzipped in the `raw_data` directory under the directory `data`.
 It contains several JSON files with the information of the scenarios and its labels. 
