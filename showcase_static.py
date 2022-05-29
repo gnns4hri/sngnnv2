@@ -139,8 +139,8 @@ params = {}
 x = z = angle = 0
 M = get_transformation_matrix_for_pose(x, z, angle)
 
-youbotL = 0.3
-youbotW = 0.3
+youbotL = 0.576
+youbotW = 0.576
 robot = Polygon(
     [
         [youbotW / 2, youbotL / 2],
@@ -320,7 +320,8 @@ for scenario in scenario_list:
                     else:
                         within_room = False
 
-                if robot.intersects(Polygon(last_frame_room)):
+                robot_point = Point(0,0)
+                if robot_point.within(Polygon(last_frame_room)):
                     white_zone = False
 
                 if (
