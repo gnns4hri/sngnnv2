@@ -25,10 +25,11 @@ if len(sys.argv) != 3:
     print(f"Usage: 'python3 {sys.argv[0]} model_directory resolution'")
     sys.exit(0)
 
-scenario_list = ["jsons_test/S1_000000.json", "jsons_test/S1_000004.json", "jsons_test/S2_000000.json",
-                 "jsons_test/S2F_00000.json", "jsons_test/S2FL_000000.json"]
+# scenario_list = ["jsons_test/S1_000000.json", "jsons_test/S1_000004.json", "jsons_test/S2_000000.json",
+#                  "jsons_test/S2F_00000.json", "jsons_test/S2FL_000000.json"]
 
 # scenario_list = ["jsons_test/" + sys.argv[2]]
+scenario_list = ['pretty_1.json']
 
 
 def get_transformation_matrix_for_pose(x, z, angle):
@@ -123,10 +124,17 @@ for scenario in scenario_list:
                 within_room = True
                 white_zone = True
                 last_frame_room = None
+                data_sequence[-1]["robot_pose"]['a'] = 0.
+                data_sequence[-1]["robot_pose"]['x'] = 0.
+                data_sequence[-1]["robot_pose"]['y'] = 0.
                 cur_pose = data_sequence[-1]["robot_pose"]
                 xn = x
                 yn = y
                 for data_structure in reversed(data_sequence):
+                    data_structure["robot_pose"]['a'] = 0.
+                    data_structure["robot_pose"]['x'] = 0.
+                    data_structure["robot_pose"]['y'] = 0.
+
                     diff_angle = data_structure["robot_pose"]["a"] - cur_pose["a"]
                     diff_x = data_structure["robot_pose"]["x"] - cur_pose["x"]
                     diff_y = data_structure["robot_pose"]["y"] - cur_pose["y"]
@@ -177,6 +185,13 @@ for scenario in scenario_list:
                         POS = M.dot(POS)
                         POS /= 10
                         POS[1][0] *= -1
+                        size_x = objectt["size_x"]
+                        size_y = objectt["size_y"]
+                        if size_x > 0.5:
+                            size_x -= 0.5
+                        if size_y > 0.5:
+                            size_y -= 0.5
+
                         sn.add_object(
                             Object(
                                 objectt["id"],
@@ -186,8 +201,8 @@ for scenario in scenario_list:
                                 objectt["vx"],
                                 objectt["vy"],
                                 objectt["va"],
-                                objectt["size_x"],
-                                objectt["size_y"],
+                                size_x,
+                                size_y,
                             )
                         )
                     room_map = []
@@ -229,19 +244,20 @@ for scenario in scenario_list:
                     # robot = Point(0,0)
 
                     # UNCOMMENT FOR COMPUTING ALL THE POSITIONS
-                    # sn_sequence.append(sn.to_json())
+                    sn_sequence.append(sn.to_json())
 
-                    # COMMENT FOR COMPUTING ALL THE POSITIONS
-                    if robot.within(Polygon(room_poly)):
-                        if within_room:
-                            sn_sequence.append(sn.to_json())
-                    else:
-                        within_room = False
+                    # # COMMENT FOR COMPUTING ALL THE POSITIONS
+                    # if robot.within(Polygon(room_poly)):
+                    #     if within_room:
+                    #         sn_sequence.append(sn.to_json())
+                    # else:
+                    #     within_room = False
 
                 robot_point = Point(0,0)
-                if robot_point.within(Polygon(last_frame_room)):
+                if True: #robot_point.within(Polygon(last_frame_room)):
                     white_zone = False
 
+                
                 if (
                     within_room
                 ):  # within_room: # use within_room to restrict even more the valid positions of the robot
