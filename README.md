@@ -1,6 +1,6 @@
 # Repository information
 This document explains the structure of this repository and how to use it to train and test three different GNN models that you can find in the `nets` directory. 
-This repository reproduces the experiments conducted in the paper: https://arxiv.org/pdf/2102.08863.pdf
+This repository reproduces the experiments conducted in the paper: [A graph neural network to model disruption in human-aware robot navigation](https://link.springer.com/article/10.1007/s11042-021-11113-6)
 
 ## Using the model
 The script 'single_test.py' demonstrates how to use the API:
